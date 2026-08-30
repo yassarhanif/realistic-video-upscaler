@@ -88,8 +88,8 @@ async function main() {
   const jobId = runData.id;
   console.log(`✓ Job ID RunPod berhasil dibuat: ${jobId}`);
 
-  console.log(`\n[3/3] Memantau status eksekusi GPU RTX 4090...`);
   const startTime = Date.now();
+  const MAX_RUNTIME_SECONDS = 600; // 10 minutes maximum runtime safety limit
 
   const pollInterval = setInterval(async () => {
     try {
@@ -97,9 +97,20 @@ async function main() {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
       const statusData = await statusRes.json();
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      const elapsed = parseFloat(((Date.now() - startTime) / 1000).toFixed(1));
 
-      console.log(`[+${elapsed}s] Status: ${statusData.status}`);
+      console.log(`[+${elapsed.toFixed(1)}s] Status: ${statusData.status} | Worker: ${statusData.workerId || 'In Queue'}`);
+
+      // Auto-cancel watchdog to protect credits on hung jobs
+      if (elapsed > MAX_RUNTIME_SECONDS && statusData.status === "IN_PROGRESS") {
+        console.warn(`\n⚠️ SAFETY WATCHDOG: Batas waktu proteksi (${MAX_RUNTIME_SECONDS} detik) tercapai. Membatalkan job otomatis untuk mengamankan saldo kredit...`);
+        await fetch(`https://api.runpod.ai/v2/${endpointId}/cancel/${jobId}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        clearInterval(pollInterval);
+        process.exit(1);
+      }
 
       if (statusData.status === "COMPLETED") {
         clearInterval(pollInterval);
@@ -111,7 +122,7 @@ async function main() {
         console.log(`URL Video Hasil: ${statusData.output?.output_url}`);
       } else if (["FAILED", "CANCELLED", "TIMED_OUT"].includes(statusData.status)) {
         clearInterval(pollInterval);
-        console.error("\n❌ PROSES GAGAL:", statusData.error || statusData);
+        console.error("\n❌ PROSES GAGAL / DIBATALKAN:", statusData.error || statusData);
         process.exit(1);
       }
     } catch (e) {

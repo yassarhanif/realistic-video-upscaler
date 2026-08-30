@@ -365,6 +365,7 @@ def process_video(input_path, output_path, upscaler, face_enhancer, outscale=4, 
     out_h = out_h if out_h % 2 == 0 else out_h + 1
 
     temp_audio_path = f"/tmp/extracted_audio_{uuid.uuid4().hex}.aac"
+    ffmpeg_log_path = f"/tmp/ffmpeg_log_{uuid.uuid4().hex}.log"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     meta = probe_video(input_path)
@@ -378,7 +379,7 @@ def process_video(input_path, output_path, upscaler, face_enhancer, outscale=4, 
         )
 
     # -----------------------------------------------------------------------
-    # Direct FFmpeg Rawvideo Pipe (ZERO disk thrashing, 100% accurate color)
+    # Direct FFmpeg Rawvideo Pipe with Fail-Fast Log File (Zero Blocking)
     # -----------------------------------------------------------------------
     ffmpeg_cmd = [
         FFMPEG_BIN, "-y",
@@ -416,48 +417,73 @@ def process_video(input_path, output_path, upscaler, face_enhancer, outscale=4, 
         ])
 
     print(f"Starting direct FFmpeg rawvideo encoder pipe to {output_path}...")
-    pipe_proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    ffmpeg_log_file = open(ffmpeg_log_path, "w")
+    pipe_proc = subprocess.Popen(
+        ffmpeg_cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=ffmpeg_log_file,
+    )
 
     frames_processed = 0
-    print(f"Upscaling {total_frames} frames from {in_w}x{in_h} to {out_w}x{out_h} at {fps} FPS (Batch Size: {batch_size})...")
+    print(f"Upscaling {total_frames} frames from {in_w}x{in_h} to {out_w}x{out_h} at {fps} FPS (Batch Size: {batch_size})...", flush=True)
 
     batch_frames = []
 
     def process_batch(frames):
         nonlocal frames_processed
+        # Immediate Fail-Fast check before processing next batch
+        if pipe_proc.poll() is not None:
+            ffmpeg_log_file.close()
+            with open(ffmpeg_log_path, "r") as lf:
+                err_text = lf.read()
+            raise RuntimeError(f"FFmpeg encoder stopped unexpectedly (exit code {pipe_proc.returncode}):\n{err_text}")
+
         enhanced_batch = upscaler.enhance_batch(frames, outscale=outscale)
         for enh in enhanced_batch:
             if enh.shape[1] != out_w or enh.shape[0] != out_h:
                 enh = cv2.resize(enh, (out_w, out_h), interpolation=cv2.INTER_LANCZOS4)
-            pipe_proc.stdin.write(enh.tobytes())
+            try:
+                pipe_proc.stdin.write(enh.tobytes())
+            except (BrokenPipeError, IOError) as e:
+                ffmpeg_log_file.close()
+                with open(ffmpeg_log_path, "r") as lf:
+                    err_text = lf.read()
+                raise RuntimeError(f"FFmpeg pipe broken unexpectedly:\n{err_text}")
             frames_processed += 1
 
-    while True:
-        ret, frame = cap.read()
-        if not ret or frame is None:
-            break
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                break
 
-        batch_frames.append(frame)
-        if len(batch_frames) >= batch_size:
+            batch_frames.append(frame)
+            if len(batch_frames) >= batch_size:
+                process_batch(batch_frames)
+                batch_frames = []
+                if frames_processed % 15 == 0 or (total_frames > 0 and frames_processed == total_frames):
+                    print(f"Processed {frames_processed}/{total_frames} frames ({int(frames_processed / max(total_frames, 1) * 100)}%)...", flush=True)
+
+        if batch_frames:
             process_batch(batch_frames)
-            batch_frames = []
-            if frames_processed % 30 == 0 or (total_frames > 0 and frames_processed == total_frames):
-                print(f"Processed {frames_processed}/{total_frames} frames...")
-
-    if batch_frames:
-        process_batch(batch_frames)
-        print(f"Processed {frames_processed}/{total_frames} frames...")
-
-    cap.release()
-    pipe_proc.stdin.close()
-    pipe_proc.wait()
+            print(f"Processed {frames_processed}/{total_frames} frames (100%)...", flush=True)
+    finally:
+        cap.release()
+        if pipe_proc.stdin and not pipe_proc.stdin.closed:
+            pipe_proc.stdin.close()
+        pipe_proc.wait()
+        ffmpeg_log_file.close()
 
     if pipe_proc.returncode != 0:
-        _, err = pipe_proc.communicate()
-        print(f"FFmpeg encoder warning/error: {err.decode('utf-8') if err else 'Unknown'}")
+        with open(ffmpeg_log_path, "r") as lf:
+            err_text = lf.read()
+        raise RuntimeError(f"FFmpeg encoding finalized with error (exit code {pipe_proc.returncode}):\n{err_text}")
 
     if os.path.exists(temp_audio_path):
         os.remove(temp_audio_path)
+    if os.path.exists(ffmpeg_log_path):
+        os.remove(ffmpeg_log_path)
 
     return frames_processed
 
