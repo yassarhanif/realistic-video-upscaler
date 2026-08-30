@@ -136,7 +136,21 @@ def probe_media(file_path):
     }
 
 
-def run_seedvr2_upscale(input_path, output_path, scale=4, is_image=False):
+def run_seedvr2_upscale(
+    input_path,
+    output_path,
+    scale=4,
+    is_image=False,
+    denoise_strength=0.25,
+    batch_size=9,
+    uniform_batch_size=True,
+    color_correction="lab",
+    input_noise_scale=0.0,
+    latent_noise_scale=0.0,
+    resolution=1080,
+    max_resolution=0,
+    attention_mode="sdpa",
+):
     """
     Executes official ByteDance SeedVR2-3B Diffusion Transformer inference.
     """
@@ -149,7 +163,11 @@ def run_seedvr2_upscale(input_path, output_path, scale=4, is_image=False):
     # Cap target resolution to standard bounds if necessary
     target_resolution = max(target_resolution, 720)
 
+    if resolution != 1080:
+        target_resolution = resolution
+
     print(f"[SeedVR2-3B] Input dimension: {in_w}x{in_h} -> Target short-side resolution: {target_resolution} (Scale: {scale}x)")
+    print(f"[SeedVR2-3B] Quality params: denoise={denoise_strength}, batch_size={batch_size}, color_correction={color_correction}, attention={attention_mode}")
 
     # Find models directory
     model_dir = MODELS_DIR
@@ -172,14 +190,25 @@ def run_seedvr2_upscale(input_path, output_path, scale=4, is_image=False):
         "--model_dir", model_dir,
         "--dit_model", "seedvr2_ema_3b_fp8_e4m3fn.safetensors",
         "--resolution", str(target_resolution),
-        "--batch_size", "5",
-        "--color_correction", "lab",
-        "--attention_mode", "sdpa",
+        "--batch_size", str(batch_size),
+        "--color_correction", color_correction,
+        "--attention_mode", attention_mode,
         "--vae_encode_tiled",
         "--vae_decode_tiled",
         "--dit_offload_device", "cpu",
         "--vae_offload_device", "cpu",
     ]
+
+    if uniform_batch_size:
+        cmd.append("--uniform_batch_size")
+
+    if input_noise_scale > 0:
+        cmd.extend(["--input_noise_scale", str(input_noise_scale)])
+    if latent_noise_scale > 0:
+        cmd.extend(["--latent_noise_scale", str(latent_noise_scale)])
+
+    if max_resolution > 0:
+        cmd.extend(["--max_resolution", str(max_resolution)])
 
     if not is_image:
         cmd.extend(["--video_backend", "ffmpeg"])
@@ -234,6 +263,18 @@ def handler(job):
         scale = validated["scale"]
         outscale = validated["outscale"]
 
+        quality_params = {
+            "denoise_strength": validated["denoise_strength"],
+            "batch_size": validated["batch_size"],
+            "uniform_batch_size": validated["uniform_batch_size"],
+            "color_correction": validated["color_correction"],
+            "input_noise_scale": validated["input_noise_scale"],
+            "latent_noise_scale": validated["latent_noise_scale"],
+            "resolution": validated["resolution"],
+            "max_resolution": validated["max_resolution"],
+            "attention_mode": validated["attention_mode"],
+        }
+
         work_dir = f"/tmp/{job_id}"
         os.makedirs(work_dir, exist_ok=True)
 
@@ -245,12 +286,12 @@ def handler(job):
 
         if is_image:
             output_path = os.path.join(work_dir, "output.png")
-            frames = run_seedvr2_upscale(input_path, output_path, scale=scale, is_image=True)
+            frames = run_seedvr2_upscale(input_path, output_path, scale=scale, is_image=True, **quality_params)
             content_type = "image/png"
             output_key = f"output-images/{job_id}_upscaled.png"
         else:
             output_path = os.path.join(work_dir, "output.mp4")
-            frames = run_seedvr2_upscale(input_path, output_path, scale=scale, is_image=False)
+            frames = run_seedvr2_upscale(input_path, output_path, scale=scale, is_image=False, **quality_params)
             content_type = "video/mp4"
             output_key = f"output-videos/{job_id}_upscaled.mp4"
 

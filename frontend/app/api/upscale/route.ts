@@ -9,7 +9,15 @@ export async function POST(req: NextRequest) {
       videoUrl,
       scale = 4,
       modelName = "SeedVR2_3B",
-      denoiseStrength = 0.5,
+      denoiseStrength = 0.25,
+      batchSize = 9,
+      uniformBatchSize = true,
+      colorCorrection = "lab",
+      inputNoiseScale = 0.0,
+      latentNoiseScale = 0.0,
+      resolution = 1080,
+      maxResolution = 0,
+      attentionMode = "sdpa",
     } = body;
 
     if (!fileKey && !videoUrl) {
@@ -26,6 +34,14 @@ export async function POST(req: NextRequest) {
       outscale: Number(scale) || 4,
       model_name: modelName,
       denoise_strength: Number(denoiseStrength),
+      batch_size: Number(batchSize) || 9,
+      uniform_batch_size: Boolean(uniformBatchSize),
+      color_correction: String(colorCorrection),
+      input_noise_scale: Number(inputNoiseScale) || 0.0,
+      latent_noise_scale: Number(latentNoiseScale) || 0.0,
+      resolution: Number(resolution) || 1080,
+      max_resolution: Number(maxResolution) || 0,
+      attention_mode: String(attentionMode),
     };
 
     const runpodResponse = await triggerRunPodJob(payload);

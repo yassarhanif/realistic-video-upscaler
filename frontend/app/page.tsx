@@ -16,7 +16,15 @@ export default function Home() {
     scale: 4,
     modelName: "SeedVR_2_5",
     faceEnhance: false,
-    denoiseStrength: 0.5,
+    denoiseStrength: 0.25,
+    batchSize: 9,
+    uniformBatchSize: true,
+    colorCorrection: "lab",
+    inputNoiseScale: 0.0,
+    latentNoiseScale: 0.0,
+    resolution: 1080,
+    maxResolution: 0,
+    attentionMode: "sdpa",
   });
 
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -116,6 +124,14 @@ export default function Home() {
           modelName: settings.modelName,
           faceEnhance: settings.faceEnhance,
           denoiseStrength: settings.denoiseStrength,
+          batchSize: settings.batchSize,
+          uniformBatchSize: settings.uniformBatchSize,
+          colorCorrection: settings.colorCorrection,
+          inputNoiseScale: settings.inputNoiseScale,
+          latentNoiseScale: settings.latentNoiseScale,
+          resolution: settings.resolution,
+          maxResolution: settings.maxResolution,
+          attentionMode: settings.attentionMode,
         }),
       });
 

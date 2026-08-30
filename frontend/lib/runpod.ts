@@ -9,6 +9,14 @@ export interface UpscaleJobInput {
   face_enhance?: boolean;
   denoise_strength?: number;
   outscale?: number;
+  batch_size?: number;
+  uniform_batch_size?: boolean;
+  color_correction?: string;
+  input_noise_scale?: number;
+  latent_noise_scale?: number;
+  resolution?: number;
+  max_resolution?: number;
+  attention_mode?: string;
 }
 
 export type JobStatusType =
