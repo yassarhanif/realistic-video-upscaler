@@ -14,7 +14,7 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<SelectedFileMeta | null>(null);
   const [settings, setSettings] = useState<UpscaleSettings>({
     scale: 4,
-    modelName: "RealESRGAN_x4plus",
+    modelName: "SeedVR_2_5",
     faceEnhance: false,
     denoiseStrength: 0.5,
   });

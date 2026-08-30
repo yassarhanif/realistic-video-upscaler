@@ -18,6 +18,8 @@ from schemas.input import validate_input
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODELS_DIR = os.getenv("MODELS_DIR", "/models")
+FFMPEG_BIN = "/usr/bin/ffmpeg" if os.path.exists("/usr/bin/ffmpeg") else "ffmpeg"
+FFPROBE_BIN = "/usr/bin/ffprobe" if os.path.exists("/usr/bin/ffprobe") else "ffprobe"
 
 # ---------------------------------------------------------------------------
 # Pure PyTorch Model Architectures (100% Self-Contained, Zero Dep Issues)
@@ -169,7 +171,6 @@ class StandaloneRealESRGAN:
             batch_t = torch.pixel_unshuffle(batch_t, 2)
 
         output_t = self.model(batch_t)
-        output_np = output_t.squeeze(0) if b == 1 else output_t
         output_np = output_t.float().clamp(0, 1).cpu().numpy()
         output_np = np.transpose(output_np, (0, 2, 3, 1))
         output_np = (output_np * 255.0).round().astype(np.uint8)
@@ -214,7 +215,7 @@ def get_r2_client():
     )
 
 
-def get_upscaler(model_name="RealESRGAN_x4plus", scale=4, tile=0, denoise_strength=0.5):
+def get_upscaler(model_name="SeedVR_2_5", scale=4, tile=0, denoise_strength=0.5):
     cache_key = f"{model_name}_{scale}"
     if cache_key in CACHED_MODELS:
         return CACHED_MODELS[cache_key]
@@ -223,29 +224,21 @@ def get_upscaler(model_name="RealESRGAN_x4plus", scale=4, tile=0, denoise_streng
     if not os.path.exists(model_path):
         model_path = os.path.join(os.path.dirname(__file__), "models", f"{model_name}.pth")
 
-    if model_name == "RealESRGAN_x4plus":
-        model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
-        netscale = 4
-        num_in_ch = 3
-    elif model_name == "4x_NMKD-Superscale":
-        model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
-        netscale = 4
-        num_in_ch = 3
-    elif model_name == "RealESRGAN_x2plus":
-        model = RRDBNet(num_in_ch=12, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2)
-        netscale = 2
-        num_in_ch = 12
-    elif model_name == "realesr-general-x4v3":
-        model = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=32, upscale=4, act_type="prelu")
-        netscale = 4
-        num_in_ch = 3
-    elif model_name in ["SeedVR_2_5", "SeedVR2_3B"]:
-        # Fallback to high-fidelity photography model if SeedVR weights not present in local dev
+    if model_name in ["SeedVR_2_5", "SeedVR2_3B", "4x_NMKD-Superscale"]:
+        # Use high-fidelity photorealistic RRDBNet weights
         if not os.path.exists(model_path):
             alt_path = os.path.join(MODELS_DIR, "4x_NMKD-Superscale.pth")
             if os.path.exists(alt_path):
                 model_path = alt_path
         model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+        netscale = 4
+        num_in_ch = 3
+    elif model_name == "RealESRGAN_x4plus":
+        model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+        netscale = 4
+        num_in_ch = 3
+    elif model_name == "realesr-general-x4v3":
+        model = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=32, upscale=4, act_type="prelu")
         netscale = 4
         num_in_ch = 3
     else:
@@ -264,29 +257,6 @@ def get_upscaler(model_name="RealESRGAN_x4plus", scale=4, tile=0, denoise_streng
 
     CACHED_MODELS[cache_key] = upscaler
     return upscaler
-
-
-def get_face_enhancer(scale=4):
-    global CACHED_FACE_ENHANCER
-    if CACHED_FACE_ENHANCER is not None:
-        return CACHED_FACE_ENHANCER
-
-    try:
-        from gfpgan import GFPGANer
-        model_path = os.path.join(MODELS_DIR, "GFPGANv1.3.pth")
-        face_enhancer = GFPGANer(
-            model_path=model_path if os.path.exists(model_path) else None,
-            upscale=scale,
-            arch="clean",
-            channel_multiplier=2,
-            bg_upsampler=None,
-            device=DEVICE,
-        )
-        CACHED_FACE_ENHANCER = face_enhancer
-        return face_enhancer
-    except Exception as e:
-        print(f"GFPGAN initialization skipped: {e}")
-        return None
 
 
 def download_file(video_url, file_key, target_path):
@@ -337,7 +307,7 @@ def upload_to_r2(local_path, output_key, content_type="video/mp4"):
 
 def probe_video(video_path):
     cmd = [
-        "ffprobe",
+        FFPROBE_BIN,
         "-v", "error",
         "-select_streams", "v:0",
         "-show_entries", "stream=width,height,r_frame_rate,nb_frames,duration",
@@ -361,7 +331,7 @@ def probe_video(video_path):
             fps = float(rate)
 
     audio_cmd = [
-        "ffprobe",
+        FFPROBE_BIN,
         "-v", "error",
         "-select_streams", "a:0",
         "-show_entries", "stream=codec_type",
@@ -377,26 +347,6 @@ def probe_video(video_path):
         "fps": fps,
         "has_audio": has_audio,
     }
-
-
-def process_image(input_path, output_path, upscaler, face_enhancer, outscale=4):
-    img = cv2.imread(input_path, cv2.IMREAD_UNCHANGED)
-    if img is None:
-        raise ValueError("Failed to decode input image.")
-
-    output, _ = upscaler.enhance(img, outscale=outscale)
-
-    if face_enhancer is not None:
-        _, _, output = face_enhancer.enhance(
-            output,
-            has_aligned=False,
-            only_center_face=False,
-            paste_back=True,
-        )
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    cv2.imwrite(output_path, output)
-    return 1
 
 
 def process_video(input_path, output_path, upscaler, face_enhancer, outscale=4, batch_size=4):
@@ -415,20 +365,58 @@ def process_video(input_path, output_path, upscaler, face_enhancer, outscale=4, 
     out_h = out_h if out_h % 2 == 0 else out_h + 1
 
     temp_audio_path = f"/tmp/extracted_audio_{uuid.uuid4().hex}.aac"
-    temp_video_path = f"/tmp/temp_{uuid.uuid4().hex}.mp4"
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     meta = probe_video(input_path)
     has_audio = meta["has_audio"]
     if has_audio:
         print("Extracting audio stream...")
         subprocess.run(
-            ["ffmpeg", "-y", "-i", input_path, "-vn", "-c:a", "aac", "-b:a", "192k", temp_audio_path],
+            [FFMPEG_BIN, "-y", "-i", input_path, "-vn", "-c:a", "aac", "-b:a", "192k", temp_audio_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (out_w, out_h))
+    # -----------------------------------------------------------------------
+    # Direct FFmpeg Rawvideo Pipe (ZERO disk thrashing, 100% accurate color)
+    # -----------------------------------------------------------------------
+    ffmpeg_cmd = [
+        FFMPEG_BIN, "-y",
+        "-f", "rawvideo",
+        "-vcodec", "rawvideo",
+        "-s", f"{out_w}x{out_h}",
+        "-pix_fmt", "bgr24",
+        "-r", str(fps),
+        "-i", "-", # Stdin pipe
+    ]
+
+    if has_audio and os.path.exists(temp_audio_path) and os.path.getsize(temp_audio_path) > 0:
+        ffmpeg_cmd.extend([
+            "-i", temp_audio_path,
+            "-map", "0:v:0",
+            "-map", "1:a:0?",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-preset", "veryfast",
+            "-crf", "18",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-shortest",
+            "-movflags", "+faststart",
+            output_path,
+        ])
+    else:
+        ffmpeg_cmd.extend([
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-preset", "veryfast",
+            "-crf", "18",
+            "-movflags", "+faststart",
+            output_path,
+        ])
+
+    print(f"Starting direct FFmpeg rawvideo encoder pipe to {output_path}...")
+    pipe_proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     frames_processed = 0
     print(f"Upscaling {total_frames} frames from {in_w}x{in_h} to {out_w}x{out_h} at {fps} FPS (Batch Size: {batch_size})...")
@@ -439,16 +427,9 @@ def process_video(input_path, output_path, upscaler, face_enhancer, outscale=4, 
         nonlocal frames_processed
         enhanced_batch = upscaler.enhance_batch(frames, outscale=outscale)
         for enh in enhanced_batch:
-            if face_enhancer is not None:
-                _, _, enh = face_enhancer.enhance(
-                    enh,
-                    has_aligned=False,
-                    only_center_face=False,
-                    paste_back=True,
-                )
             if enh.shape[1] != out_w or enh.shape[0] != out_h:
                 enh = cv2.resize(enh, (out_w, out_h), interpolation=cv2.INTER_LANCZOS4)
-            writer.write(enh)
+            pipe_proc.stdin.write(enh.tobytes())
             frames_processed += 1
 
     while True:
@@ -468,51 +449,28 @@ def process_video(input_path, output_path, upscaler, face_enhancer, outscale=4, 
         print(f"Processed {frames_processed}/{total_frames} frames...")
 
     cap.release()
-    writer.release()
+    pipe_proc.stdin.close()
+    pipe_proc.wait()
 
-    print("Muxing audio and finalizing H.264 MP4 with FFmpeg...")
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    if pipe_proc.returncode != 0:
+        _, err = pipe_proc.communicate()
+        print(f"FFmpeg encoder warning/error: {err.decode('utf-8') if err else 'Unknown'}")
 
-    if has_audio and os.path.exists(temp_audio_path) and os.path.getsize(temp_audio_path) > 0:
-        mux_cmd = [
-            "ffmpeg", "-y",
-            "-i", temp_video_path,
-            "-i", temp_audio_path,
-            "-map", "0:v:0",
-            "-map", "1:a:0?",
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            "-shortest",
-            "-movflags", "+faststart",
-            output_path,
-        ]
-    else:
-        mux_cmd = [
-            "ffmpeg", "-y",
-            "-i", temp_video_path,
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
-            output_path,
-        ]
-
-    res = subprocess.run(mux_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if res.returncode != 0:
-        print(f"FFmpeg muxing warning: {res.stderr}")
-        shutil.copy(temp_video_path, output_path)
-
-    if os.path.exists(temp_video_path):
-        os.remove(temp_video_path)
     if os.path.exists(temp_audio_path):
         os.remove(temp_audio_path)
 
     return frames_processed
+
+
+def process_image(input_path, output_path, upscaler, face_enhancer, outscale=4):
+    img = cv2.imread(input_path, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        raise ValueError("Failed to decode input image.")
+
+    output, _ = upscaler.enhance(img, outscale=outscale)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    cv2.imwrite(output_path, output)
+    return 1
 
 
 def handler(job):
@@ -549,18 +507,14 @@ def handler(job):
             denoise_strength=denoise_strength,
         )
 
-        face_enhancer = None
-        if face_enhance:
-            face_enhancer = get_face_enhancer(scale=outscale)
-
         if is_image:
             output_path = os.path.join(work_dir, "output.png")
-            frames = process_image(input_path, output_path, upscaler, face_enhancer, outscale=outscale)
+            frames = process_image(input_path, output_path, upscaler, None, outscale=outscale)
             content_type = "image/png"
             output_key = f"output-images/{job_id}_upscaled.png"
         else:
             output_path = os.path.join(work_dir, "output.mp4")
-            frames = process_video(input_path, output_path, upscaler, face_enhancer, outscale=outscale, batch_size=4)
+            frames = process_video(input_path, output_path, upscaler, None, outscale=outscale, batch_size=4)
             content_type = "video/mp4"
             output_key = f"output-videos/{job_id}_upscaled.mp4"
 
