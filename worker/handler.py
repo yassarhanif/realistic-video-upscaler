@@ -12,15 +12,29 @@ import boto3
 from botocore.config import Config
 import runpod
 
+# CRITICAL FIX for BasicSR on PyTorch 2.x / Torchvision 0.17+:
+# BasicSR expects torchvision.transforms.functional_tensor which was moved to torchvision.transforms.functional
+try:
+    import torchvision.transforms.functional as F
+    sys.modules["torchvision.transforms.functional_tensor"] = F
+except Exception as e:
+    print(f"[Startup Warning] Torchvision monkeypatch: {e}")
+
 from schemas.input import validate_input
 
 # BasicSR & RealESRGAN
-from basicsr.archs.rrdbnet_arch import RRDBNet
-from realesrgan import RealESRGANer
-from realesrgan.archs.srvgg_arch import SRVGGNetCompact
+try:
+    from basicsr.archs.rrdbnet_arch import RRDBNet
+    from realesrgan import RealESRGANer
+    from realesrgan.archs.srvgg_arch import SRVGGNetCompact
+except Exception as e:
+    print(f"[Import Warning] RealESRGAN import: {e}")
 
 # GFPGAN Face Restoration
-from gfpgan import GFPGANer
+try:
+    from gfpgan import GFPGANer
+except Exception as e:
+    print(f"[Import Warning] GFPGAN import: {e}")
 
 # Global cached models to avoid reloading per request
 CACHED_MODELS = {}

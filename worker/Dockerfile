@@ -24,6 +24,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install Real-ESRGAN package
 RUN pip install --no-cache-dir realesrgan
 
+# Patch BasicSR torchvision compatibility
+RUN python3 -c "import site, os; \
+    paths = [os.path.join(s, 'basicsr/data/degradations.py') for s in site.getsitepackages()]; \
+    [open(p, 'w').write(open(p).read().replace('functional_tensor', 'functional')) for p in paths if os.path.exists(p)]" || true
+
 # Create models directory and pre-bake realistic weights into Docker image
 RUN mkdir -p /models && \
     wget -q -O /models/RealESRGAN_x4plus.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth && \
