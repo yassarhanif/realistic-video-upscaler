@@ -133,9 +133,9 @@ class StandaloneRealESRGAN:
             else:
                 keyname = None
             if keyname:
-                self.model.load_state_dict(loadnet[keyname], strict=True)
+                self.model.load_state_dict(loadnet[keyname], strict=False)
             else:
-                self.model.load_state_dict(loadnet, strict=True)
+                self.model.load_state_dict(loadnet, strict=False)
         else:
             print(f"Warning: Model path {model_path} not found.")
 
@@ -370,77 +370,44 @@ def process_image(input_path, output_path, upscaler, face_enhancer, outscale=4):
 
 
 def process_video(input_path, output_path, upscaler, face_enhancer, outscale=4):
-    meta = probe_video(input_path)
-    in_w, in_h = meta["width"], meta["height"]
-    fps = meta["fps"]
-    has_audio = meta["has_audio"]
+    cap = cv2.VideoCapture(input_path)
+    if not cap.isOpened():
+        raise ValueError("Could not open input video file.")
+
+    in_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    in_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     out_w = int(in_w * outscale)
     out_h = int(in_h * outscale)
-
     out_w = out_w if out_w % 2 == 0 else out_w + 1
     out_h = out_h if out_h % 2 == 0 else out_h + 1
 
     temp_audio_path = "/tmp/extracted_audio.aac"
+    temp_video_path = f"/tmp/temp_{uuid.uuid4().hex}.mp4"
+
+    meta = probe_video(input_path)
+    has_audio = meta["has_audio"]
     if has_audio:
         print("Extracting audio stream...")
         subprocess.run(
-            ["ffmpeg", "-y", "-i", input_path, "-vn", "-c:a", "copy", temp_audio_path],
+            ["ffmpeg", "-y", "-i", input_path, "-vn", "-c:a", "aac", "-b:a", "192k", temp_audio_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        if not os.path.exists(temp_audio_path) or os.path.getsize(temp_audio_path) == 0:
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", input_path, "-vn", "-c:a", "aac", "-b:a", "192k", temp_audio_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
 
-    reader_cmd = [
-        "ffmpeg",
-        "-i", input_path,
-        "-f", "image2pipe",
-        "-pix_fmt", "bgr24",
-        "-vcodec", "rawvideo",
-        "-",
-    ]
-    reader = subprocess.Popen(reader_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10**8)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (out_w, out_h))
 
-    writer_cmd = [
-        "ffmpeg",
-        "-y",
-        "-f", "rawvideo",
-        "-vcodec", "rawvideo",
-        "-s", f"{out_w}x{out_h}",
-        "-pix_fmt", "bgr24",
-        "-r", str(fps),
-        "-i", "-",
-    ]
-
-    if has_audio and os.path.exists(temp_audio_path) and os.path.getsize(temp_audio_path) > 0:
-        writer_cmd.extend(["-i", temp_audio_path, "-c:a", "aac", "-b:a", "192k", "-shortest"])
-
-    writer_cmd.extend([
-        "-c:v", "libx264",
-        "-preset", "medium",
-        "-crf", "18",
-        "-pix_fmt", "yuv420p",
-        output_path,
-    ])
-
-    writer = subprocess.Popen(writer_cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10**8)
-
-    frame_size = in_w * in_h * 3
     frames_processed = 0
-
-    print(f"Upscaling video from {in_w}x{in_h} to {out_w}x{out_h} at {fps} FPS...")
+    print(f"Upscaling {total_frames} frames from {in_w}x{in_h} to {out_w}x{out_h} at {fps} FPS...")
 
     while True:
-        raw_frame = reader.stdout.read(frame_size)
-        if len(raw_frame) != frame_size:
+        ret, frame = cap.read()
+        if not ret or frame is None:
             break
 
-        frame = np.frombuffer(raw_frame, dtype=np.uint8).reshape((in_h, in_w, 3))
         enhanced_frame, _ = upscaler.enhance(frame, outscale=outscale)
 
         if face_enhancer is not None:
@@ -454,18 +421,46 @@ def process_video(input_path, output_path, upscaler, face_enhancer, outscale=4):
         if enhanced_frame.shape[1] != out_w or enhanced_frame.shape[0] != out_h:
             enhanced_frame = cv2.resize(enhanced_frame, (out_w, out_h), interpolation=cv2.INTER_LANCZOS4)
 
-        writer.stdin.write(enhanced_frame.tobytes())
+        writer.write(enhanced_frame)
         frames_processed += 1
 
-        if frames_processed % 30 == 0:
-            print(f"Processed {frames_processed} frames...")
+        if frames_processed % 30 == 0 or (total_frames > 0 and frames_processed == total_frames):
+            print(f"Processed {frames_processed}/{total_frames} frames...")
 
-    reader.stdout.close()
-    reader.wait()
+    cap.release()
+    writer.release()
 
-    writer.stdin.close()
-    writer.wait()
+    print("Muxing audio and finalizing H.264 MP4 with FFmpeg...")
+    if has_audio and os.path.exists(temp_audio_path) and os.path.getsize(temp_audio_path) > 0:
+        mux_cmd = [
+            "ffmpeg", "-y",
+            "-i", temp_video_path,
+            "-i", temp_audio_path,
+            "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", "18",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-movflags", "+faststart",
+            output_path,
+        ]
+    else:
+        mux_cmd = [
+            "ffmpeg", "-y",
+            "-i", temp_video_path,
+            "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", "18",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            output_path,
+        ]
 
+    subprocess.run(mux_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    if os.path.exists(temp_video_path):
+        os.remove(temp_video_path)
     if os.path.exists(temp_audio_path):
         os.remove(temp_audio_path)
 
