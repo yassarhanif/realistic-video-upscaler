@@ -1,9 +1,8 @@
 {
   "input": {
-    "video_url": "https://raw.githubusercontent.com/xinntao/Real-ESRGAN/master/inputs/video/low_res.mp4",
+    "video_url": "https://test-videos.co/pool/BigBuckBunny.mp4",
     "scale": 4,
-    "model_name": "RealESRGAN_x4plus",
-    "face_enhance": true,
+    "model_name": "SeedVR2",
     "denoise_strength": 0.5
   }
 }
