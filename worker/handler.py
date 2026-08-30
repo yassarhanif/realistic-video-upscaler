@@ -326,24 +326,24 @@ def process_video(input_path, output_path, upscaler, outscale=4, batch_size=4):
     ffmpeg_log_path = f"/tmp/ffmpeg_log_{uuid.uuid4().hex}.log"
     ffmpeg_log_file = open(ffmpeg_log_path, "w")
 
-    # 1. FFmpeg Pure BGR24 Frame Reader (Stdin from video)
+    # 1. FFmpeg Raw RGB24 Frame Reader — model expects RGB channel order
     reader_cmd = [
         FFMPEG_BIN,
         "-i", input_path,
         "-f", "rawvideo",
-        "-pix_fmt", "bgr24",
+        "-pix_fmt", "rgb24",
         "-vcodec", "rawvideo",
         "-",
     ]
     reader_proc = subprocess.Popen(reader_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
-    # 2. FFmpeg Pure BGR24 Frame Writer with Direct Audio Muxing
+    # 2. FFmpeg Raw RGB24 Frame Writer with Direct Audio Muxing
     writer_cmd = [
         FFMPEG_BIN, "-y",
         "-f", "rawvideo",
         "-vcodec", "rawvideo",
         "-s", f"{out_w}x{out_h}",
-        "-pix_fmt", "bgr24", # Match PyTorch output exactly
+        "-pix_fmt", "rgb24",
         "-r", str(fps),
         "-i", "-",          # Stdin pipe for video frames
         "-i", input_path,   # Input for original audio stream
@@ -416,7 +416,7 @@ def process_video(input_path, output_path, upscaler, outscale=4, batch_size=4):
             if not raw_bytes or len(raw_bytes) < frame_bytes:
                 break
 
-            rgb_frame = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((in_h, in_w, 3))
+            rgb_frame = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((in_h, in_w, 3)).copy()
             batch_frames.append(rgb_frame)
 
             if len(batch_frames) >= batch_size:
@@ -446,16 +446,11 @@ def process_video(input_path, output_path, upscaler, outscale=4, batch_size=4):
 
 
 def process_image(input_path, output_path, upscaler, outscale=4):
-    """Pure PIL Image processing with BGR-RGB conversion matching model training."""
+    """Pure RGB PIL Image processing — model expects RGB, PIL provides RGB."""
     with Image.open(input_path) as img:
         img_rgb = np.array(img.convert("RGB"))
-        img_bgr = img_rgb[:, :, ::-1] # RGB to BGR
-        
-        output_bgr = upscaler.enhance(img_bgr, outscale=outscale)
-        
-        output_rgb = np.array(output_bgr)[:, :, ::-1] # BGR to RGB
-        output_pil = Image.fromarray(output_rgb)
-        
+        enhanced = upscaler.enhance_batch([img_rgb], outscale=outscale)[0]
+        output_pil = Image.fromarray(enhanced)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         output_pil.save(output_path, quality=95)
     return 1
