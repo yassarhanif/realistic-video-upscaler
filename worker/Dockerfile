@@ -21,9 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Ensure system FFmpeg takes absolute precedence over stripped conda ffmpeg
 RUN rm -f /opt/conda/bin/ffmpeg /opt/conda/bin/ffprobe || true
 
-# Pre-download official ByteDance SeedVR2-3B FP8 weights & VAE into /models/SEEDVR2 (Cached permanently)
+# Pre-download official ByteDance SeedVR2-3B FP16 weights & VAE into /models/SEEDVR2 (Cached permanently)
 RUN mkdir -p /models/SEEDVR2 && \
-    curl -L -o /models/SEEDVR2/seedvr2_ema_3b_fp8_e4m3fn.safetensors https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/seedvr2_ema_3b_fp8_e4m3fn.safetensors && \
+    curl -L -o /models/SEEDVR2/seedvr2_ema_3b_fp16.safetensors https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/seedvr2_ema_3b_fp16.safetensors && \
     curl -L -o /models/SEEDVR2/ema_vae_fp16.safetensors https://huggingface.co/numz/SeedVR2_comfyUI/resolve/main/ema_vae_fp16.safetensors
 
 # Clone official SeedVR2 engine repository

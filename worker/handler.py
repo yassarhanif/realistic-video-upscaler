@@ -188,7 +188,7 @@ def run_seedvr2_upscale(
         input_path,
         "--output", temp_seedvr_out,
         "--model_dir", model_dir,
-        "--dit_model", "seedvr2_ema_3b_fp8_e4m3fn.safetensors",
+        "--dit_model", "seedvr2_ema_3b_fp16.safetensors",
         "--resolution", str(target_resolution),
         "--batch_size", str(batch_size),
         "--color_correction", color_correction,
