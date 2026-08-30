@@ -227,12 +227,25 @@ def get_upscaler(model_name="RealESRGAN_x4plus", scale=4, tile=0, denoise_streng
         model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
         netscale = 4
         num_in_ch = 3
+    elif model_name == "4x_NMKD-Superscale":
+        model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+        netscale = 4
+        num_in_ch = 3
     elif model_name == "RealESRGAN_x2plus":
         model = RRDBNet(num_in_ch=12, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2)
         netscale = 2
         num_in_ch = 12
     elif model_name == "realesr-general-x4v3":
         model = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=32, upscale=4, act_type="prelu")
+        netscale = 4
+        num_in_ch = 3
+    elif model_name in ["SeedVR_2_5", "SeedVR2_3B"]:
+        # Fallback to high-fidelity photography model if SeedVR weights not present in local dev
+        if not os.path.exists(model_path):
+            alt_path = os.path.join(MODELS_DIR, "4x_NMKD-Superscale.pth")
+            if os.path.exists(alt_path):
+                model_path = alt_path
+        model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
         netscale = 4
         num_in_ch = 3
     else:

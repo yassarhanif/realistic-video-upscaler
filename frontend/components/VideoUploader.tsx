@@ -4,11 +4,13 @@ import React, { useState, useRef, useCallback } from "react";
 import { Upload, Film, Image as ImageIcon, X, AlertCircle } from "lucide-react";
 
 export interface SelectedFileMeta {
-  file: File;
+  file?: File;
   previewUrl: string;
   isImage: boolean;
   name: string;
   size: number;
+  existingR2Key?: string;
+  existingPublicUrl?: string;
 }
 
 interface VideoUploaderProps {

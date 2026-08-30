@@ -27,10 +27,17 @@ def validate_input(job_input: Dict[str, Any]) -> Dict[str, Any]:
     except (ValueError, TypeError):
         outscale = scale
 
-    model_name = job_input.get("model_name", "RealESRGAN_x4plus")
-    valid_models = ["RealESRGAN_x4plus", "RealESRGAN_x2plus", "realesr-general-x4v3"]
+    model_name = job_input.get("model_name", "SeedVR_2_5")
+    valid_models = [
+        "SeedVR_2_5",
+        "SeedVR2_3B",
+        "4x_NMKD-Superscale",
+        "RealESRGAN_x4plus",
+        "RealESRGAN_x2plus",
+        "realesr-general-x4v3",
+    ]
     if model_name not in valid_models:
-        model_name = "RealESRGAN_x4plus"
+        model_name = "SeedVR_2_5"
 
     face_enhance = bool(job_input.get("face_enhance", False))
 

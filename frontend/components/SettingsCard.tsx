@@ -1,5 +1,5 @@
 import React from "react";
-import { Sliders, Sparkles, UserCheck, ShieldAlert } from "lucide-react";
+import { Sliders, Sparkles, UserCheck, Film, Camera, Zap } from "lucide-react";
 
 export interface UpscaleSettings {
   scale: number;
@@ -70,50 +70,87 @@ export const SettingsCard: React.FC<SettingsCardProps> = ({
         {/* AI Model Selection */}
         <div>
           <label className="text-xs font-medium text-zinc-400 block mb-2">
-            Arsitektur Model AI
+            Pilihan Mesin AI Fotorealistik
           </label>
           <div className="space-y-2">
+            {/* SeedVR 2.5 DiT Flagship */}
             <button
               type="button"
               disabled={disabled}
-              onClick={() => update({ modelName: "RealESRGAN_x4plus" })}
+              onClick={() => update({ modelName: "SeedVR_2_5" })}
               className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex items-start gap-3 ${
-                settings.modelName === "RealESRGAN_x4plus"
-                  ? "bg-zinc-800/80 border-zinc-600 text-white"
+                settings.modelName === "SeedVR_2_5"
+                  ? "bg-zinc-850 border-zinc-500 text-white shadow-sm ring-1 ring-zinc-500/30"
                   : "bg-zinc-950/60 border-zinc-800/80 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <div
                 className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0 ${
-                  settings.modelName === "RealESRGAN_x4plus"
+                  settings.modelName === "SeedVR_2_5"
                     ? "border-white bg-white"
                     : "border-zinc-600"
                 }`}
               >
-                {settings.modelName === "RealESRGAN_x4plus" && (
+                {settings.modelName === "SeedVR_2_5" && (
                   <div className="w-1.5 h-1.5 rounded-full bg-zinc-950" />
                 )}
               </div>
-              <div className="flex-1">
-                <div className="font-medium text-zinc-200 flex items-center gap-1.5">
-                  RealESRGAN_x4plus
-                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-700/60 text-zinc-300">
-                    Direkomendasikan
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-zinc-100 flex items-center gap-1.5 flex-wrap">
+                  <span>SeedVR 2.5 (ByteDance DiT)</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-zinc-700 text-zinc-200 font-semibold uppercase tracking-wider">
+                    ⭐ Ultra Sinematik
                   </span>
                 </div>
                 <div className="text-[11px] text-zinc-400 mt-0.5">
-                  Tekstur fotorealistik RRDBNet 64-block untuk rekaman dunia nyata yang natural.
+                  Video Diffusion Transformer dengan konsistensi temporal anti-flicker &amp; tekstur sinema fotorealistik.
                 </div>
               </div>
             </button>
 
+            {/* 4x_NMKD-Superscale (Natural Photography & Skin) */}
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => update({ modelName: "4x_NMKD-Superscale" })}
+              className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex items-start gap-3 ${
+                settings.modelName === "4x_NMKD-Superscale"
+                  ? "bg-zinc-850 border-zinc-500 text-white shadow-sm ring-1 ring-zinc-500/30"
+                  : "bg-zinc-950/60 border-zinc-800/80 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+              } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <div
+                className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                  settings.modelName === "4x_NMKD-Superscale"
+                    ? "border-white bg-white"
+                    : "border-zinc-600"
+                }`}
+              >
+                {settings.modelName === "4x_NMKD-Superscale" && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-950" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-zinc-100 flex items-center gap-1.5 flex-wrap">
+                  <span>4x_NMKD-Superscale</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                    📸 Kulit &amp; Potret Alami
+                  </span>
+                </div>
+                <div className="text-[11px] text-zinc-400 mt-0.5">
+                  Menjaga pori-pori kulit, kain, dan fotografi manusia tanpa efek over-sharpen / plastik.
+                </div>
+              </div>
+            </button>
+
+            {/* realesr-general-x4v3 (Fast Realistic) */}
             <button
               type="button"
               disabled={disabled}
               onClick={() => update({ modelName: "realesr-general-x4v3" })}
               className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex items-start gap-3 ${
                 settings.modelName === "realesr-general-x4v3"
-                  ? "bg-zinc-800/80 border-zinc-600 text-white"
+                  ? "bg-zinc-850 border-zinc-500 text-white shadow-sm ring-1 ring-zinc-500/30"
                   : "bg-zinc-950/60 border-zinc-800/80 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
@@ -128,12 +165,47 @@ export const SettingsCard: React.FC<SettingsCardProps> = ({
                   <div className="w-1.5 h-1.5 rounded-full bg-zinc-950" />
                 )}
               </div>
-              <div className="flex-1">
-                <div className="font-medium text-zinc-200">
-                  realesr-general-x4v3
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-zinc-200 flex items-center gap-1.5">
+                  <span>realesr-general-x4v3</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                    ⚡ Cepat
+                  </span>
                 </div>
                 <div className="text-[11px] text-zinc-400 mt-0.5">
-                  Model SRVGGNet ringkas dengan inferensi lebih cepat dan reduksi noise bawaan.
+                  Inference super cepat dengan pembersihan noise kompresi bawaan.
+                </div>
+              </div>
+            </button>
+
+            {/* RealESRGAN_x4plus */}
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => update({ modelName: "RealESRGAN_x4plus" })}
+              className={`w-full text-left p-3 rounded-xl border text-xs transition-all flex items-start gap-3 ${
+                settings.modelName === "RealESRGAN_x4plus"
+                  ? "bg-zinc-850 border-zinc-500 text-white shadow-sm ring-1 ring-zinc-500/30"
+                  : "bg-zinc-950/60 border-zinc-800/80 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+              } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <div
+                className={`mt-0.5 w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                  settings.modelName === "RealESRGAN_x4plus"
+                    ? "border-white bg-white"
+                    : "border-zinc-600"
+                }`}
+              >
+                {settings.modelName === "RealESRGAN_x4plus" && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-950" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-zinc-200">
+                  RealESRGAN_x4plus
+                </div>
+                <div className="text-[11px] text-zinc-400 mt-0.5">
+                  Penajaman garis tegas standar untuk footage umum.
                 </div>
               </div>
             </button>

@@ -11,3 +11,10 @@ numpy>=1.24.0,<2.0.0
 tqdm>=4.66.0
 requests>=2.31.0
 Pillow>=10.2.0
+einops>=0.7.0
+diffusers>=0.27.0
+transformers>=4.40.0
+accelerate>=0.29.0
+timm>=0.9.16
+huggingface_hub>=0.22.0
+
