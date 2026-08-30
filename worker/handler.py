@@ -326,24 +326,24 @@ def process_video(input_path, output_path, upscaler, outscale=4, batch_size=4):
     ffmpeg_log_path = f"/tmp/ffmpeg_log_{uuid.uuid4().hex}.log"
     ffmpeg_log_file = open(ffmpeg_log_path, "w")
 
-    # 1. FFmpeg Pure RGB24 Frame Reader (Stdin from video)
+    # 1. FFmpeg Pure BGR24 Frame Reader (Stdin from video)
     reader_cmd = [
         FFMPEG_BIN,
         "-i", input_path,
-        "-f", "image2pipe",
-        "-pix_fmt", "rgb24",
+        "-f", "rawvideo",
+        "-pix_fmt", "bgr24",
         "-vcodec", "rawvideo",
         "-",
     ]
     reader_proc = subprocess.Popen(reader_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
-    # 2. FFmpeg Pure RGB24 Frame Writer with Direct Audio Muxing
+    # 2. FFmpeg Pure BGR24 Frame Writer with Direct Audio Muxing
     writer_cmd = [
         FFMPEG_BIN, "-y",
         "-f", "rawvideo",
         "-vcodec", "rawvideo",
         "-s", f"{out_w}x{out_h}",
-        "-pix_fmt", "rgb24", # PURE RGB INPUT
+        "-pix_fmt", "bgr24", # Match PyTorch output exactly
         "-r", str(fps),
         "-i", "-",          # Stdin pipe for video frames
         "-i", input_path,   # Input for original audio stream
@@ -446,12 +446,18 @@ def process_video(input_path, output_path, upscaler, outscale=4, batch_size=4):
 
 
 def process_image(input_path, output_path, upscaler, outscale=4):
-    """Pure PIL Image processing (0% OpenCV, True Color)."""
+    """Pure PIL Image processing with BGR-RGB conversion matching model training."""
     with Image.open(input_path) as img:
-        img_rgb = img.convert("RGB")
-        output = upscaler.enhance(img_rgb, outscale=outscale)
+        img_rgb = np.array(img.convert("RGB"))
+        img_bgr = img_rgb[:, :, ::-1] # RGB to BGR
+        
+        output_bgr = upscaler.enhance(img_bgr, outscale=outscale)
+        
+        output_rgb = np.array(output_bgr)[:, :, ::-1] # BGR to RGB
+        output_pil = Image.fromarray(output_rgb)
+        
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        output.save(output_path, quality=95)
+        output_pil.save(output_path, quality=95)
     return 1
 
 
