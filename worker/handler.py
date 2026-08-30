@@ -185,10 +185,13 @@ def run_seedvr2_upscale(input_path, output_path, scale=4, is_image=False):
         cmd.extend(["--video_backend", "ffmpeg"])
 
     print(f"[SeedVR2-3B] Executing CLI command: {' '.join(cmd)}")
-    result = subprocess.run(cmd, text=True)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     if result.returncode != 0:
-        raise RuntimeError(f"SeedVR2 CLI inference failed with return code {result.returncode}")
+        err_msg = (result.stderr or result.stdout or "").strip()
+        print(f"[SeedVR2-3B] CLI stderr output:\n{err_msg}")
+        raise RuntimeError(f"SeedVR2 CLI inference failed with return code {result.returncode}:\n{err_msg}")
+
 
     # If video had audio, mux the original audio back into the final output
     if not is_image and meta["has_audio"] and os.path.exists(temp_seedvr_out):
