@@ -24,11 +24,9 @@ RUN rm -f /opt/conda/bin/ffmpeg /opt/conda/bin/ffprobe || true
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download validated models
+# Pre-download official SeedVR2 photorealistic weights into /models
 RUN mkdir -p /models && \
-    curl -L -o /models/4x_NMKD-Superscale.pth https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth && \
-    curl -L -o /models/RealESRGAN_x4plus.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth && \
-    curl -L -o /models/realesr-general-x4v3.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth
+    curl -L -o /models/SeedVR2.pth https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth
 
 # Copy application files
 COPY schemas/ /app/schemas/

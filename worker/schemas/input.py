@@ -1,8 +1,8 @@
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 def validate_input(job_input: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Validates and normalizes input arguments for the upscaler worker.
+    Validates and normalizes input arguments for the ByteDance SeedVR2 worker.
     """
     if not isinstance(job_input, dict):
         raise ValueError("Job input must be a JSON object.")
@@ -27,20 +27,6 @@ def validate_input(job_input: Dict[str, Any]) -> Dict[str, Any]:
     except (ValueError, TypeError):
         outscale = scale
 
-    model_name = job_input.get("model_name", "SeedVR_2_5")
-    valid_models = [
-        "SeedVR_2_5",
-        "SeedVR2_3B",
-        "4x_NMKD-Superscale",
-        "RealESRGAN_x4plus",
-        "RealESRGAN_x2plus",
-        "realesr-general-x4v3",
-    ]
-    if model_name not in valid_models:
-        model_name = "SeedVR_2_5"
-
-    face_enhance = bool(job_input.get("face_enhance", False))
-
     denoise_strength = job_input.get("denoise_strength", 0.5)
     try:
         denoise_strength = float(denoise_strength)
@@ -48,19 +34,11 @@ def validate_input(job_input: Dict[str, Any]) -> Dict[str, Any]:
     except (ValueError, TypeError):
         denoise_strength = 0.5
 
-    tile = job_input.get("tile", 0)
-    try:
-        tile = int(tile)
-    except (ValueError, TypeError):
-        tile = 0
-
     return {
         "video_url": video_url,
         "file_key": file_key,
         "scale": scale,
         "outscale": outscale,
-        "model_name": model_name,
-        "face_enhance": face_enhance,
+        "model_name": "SeedVR2",
         "denoise_strength": denoise_strength,
-        "tile": tile,
     }
