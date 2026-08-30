@@ -8,8 +8,7 @@ export async function POST(req: NextRequest) {
       fileKey,
       videoUrl,
       scale = 4,
-      modelName = "RealESRGAN_x4plus",
-      faceEnhance = false,
+      modelName = "SeedVR2_3B",
       denoiseStrength = 0.5,
     } = body;
 
@@ -26,7 +25,6 @@ export async function POST(req: NextRequest) {
       scale: Number(scale) || 4,
       outscale: Number(scale) || 4,
       model_name: modelName,
-      face_enhance: Boolean(faceEnhance),
       denoise_strength: Number(denoiseStrength),
     };
 

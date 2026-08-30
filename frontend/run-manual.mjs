@@ -24,7 +24,7 @@ const bucketName = process.env.R2_BUCKET_NAME || "upscale";
 const publicDomain = process.env.NEXT_PUBLIC_R2_PUBLIC_DOMAIN || "";
 
 const apiKey = process.env.RUNPOD_API_KEY || "";
-const endpointId = process.env.RUNPOD_ENDPOINT_ID || "trm1whoypr28ax";
+const endpointId = process.env.RUNPOD_ENDPOINT_ID || "mz6vsspa14jmpx";
 
 const s3Client = new S3Client({
   region: "auto",
@@ -89,7 +89,7 @@ async function main() {
   console.log(`✓ Job ID RunPod berhasil dibuat: ${jobId}`);
 
   const startTime = Date.now();
-  const MAX_RUNTIME_SECONDS = 600; // 10 minutes maximum runtime safety limit
+  const MAX_RUNTIME_SECONDS = 3600; // 1 hour max for 4x upscaling to 5K resolution
 
   const pollInterval = setInterval(async () => {
     try {
