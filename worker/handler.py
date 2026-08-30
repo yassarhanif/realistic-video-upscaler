@@ -64,7 +64,8 @@ class RRDBNet(nn.Module):
         self.body = nn.Sequential(*[RRDB(nf=num_feat, gc=num_grow_ch) for _ in range(num_block)])
         self.conv_body = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
         self.conv_up1 = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
-        self.conv_up2 = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
+        if self.scale >= 4:
+            self.conv_up2 = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
         if self.scale == 8:
             self.conv_up3 = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
         self.conv_hr = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
@@ -115,8 +116,9 @@ class SRVGGNetCompact(nn.Module):
 
 
 class StandaloneRealESRGAN:
-    def __init__(self, scale=4, model_path=None, model=None, device=DEVICE, half=True):
+    def __init__(self, scale=4, num_in_ch=3, model_path=None, model=None, device=DEVICE, half=True):
         self.scale = scale
+        self.num_in_ch = num_in_ch
         self.device = device
         self.half = half and (device.type == 'cuda')
         self.model = model.to(self.device)
@@ -144,15 +146,26 @@ class StandaloneRealESRGAN:
     @torch.no_grad()
     def enhance(self, img, outscale=None):
         h, w, c = img.shape
+        pad_h = (2 - h % 2) % 2
+        pad_w = (2 - w % 2) % 2
+        if pad_h > 0 or pad_w > 0:
+            img = cv2.copyMakeBorder(img, 0, pad_h, 0, pad_w, cv2.BORDER_REFLECT)
+
         img_t = torch.from_numpy(np.transpose(img, (2, 0, 1))).float() / 255.0
         img_t = img_t.unsqueeze(0).to(self.device)
         if self.half:
             img_t = img_t.half()
 
+        if self.num_in_ch == 12:
+            img_t = torch.pixel_unshuffle(img_t, 2)
+
         output = self.model(img_t)
         output = output.squeeze(0).float().clamp(0, 1).cpu().numpy()
         output = np.transpose(output, (1, 2, 0))
         output = (output * 255.0).round().astype(np.uint8)
+
+        if pad_h > 0 or pad_w > 0:
+            output = output[:int(h * self.scale), :int(w * self.scale), :]
 
         if outscale is not None and outscale != self.scale:
             target_w = int(w * outscale)
@@ -161,7 +174,6 @@ class StandaloneRealESRGAN:
         return output, None
 
 
-# GFPGAN Face Restoration (optional)
 CACHED_MODELS = {}
 CACHED_FACE_ENHANCER = None
 
@@ -196,18 +208,23 @@ def get_upscaler(model_name="RealESRGAN_x4plus", scale=4, tile=0, denoise_streng
     if model_name == "RealESRGAN_x4plus":
         model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
         netscale = 4
+        num_in_ch = 3
     elif model_name == "RealESRGAN_x2plus":
-        model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2)
+        model = RRDBNet(num_in_ch=12, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2)
         netscale = 2
+        num_in_ch = 12
     elif model_name == "realesr-general-x4v3":
         model = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=32, upscale=4, act_type="prelu")
         netscale = 4
+        num_in_ch = 3
     else:
         model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
         netscale = 4
+        num_in_ch = 3
 
     upscaler = StandaloneRealESRGAN(
         scale=netscale,
+        num_in_ch=num_in_ch,
         model_path=model_path,
         model=model,
         device=DEVICE,
