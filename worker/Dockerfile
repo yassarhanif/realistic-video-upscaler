@@ -31,11 +31,11 @@ RUN python3 -c "import site, os; \
 
 # Create models directory and pre-bake realistic weights into Docker image
 RUN mkdir -p /models && \
-    wget -q -O /models/RealESRGAN_x4plus.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth && \
-    wget -q -O /models/RealESRGAN_x2plus.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth && \
-    wget -q -O /models/realesr-general-x4v3.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth && \
-    wget -q -O /models/4x_NMKD-Superscale.pth https://huggingface.co/uwg/upscaler/resolve/main/ESRGAN/4x_NMKD-Superscale.pth && \
-    wget -q -O /models/GFPGANv1.3.pth https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth
+    curl -L -o /models/RealESRGAN_x4plus.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth && \
+    curl -L -o /models/RealESRGAN_x2plus.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth && \
+    curl -L -o /models/realesr-general-x4v3.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth && \
+    curl -L -o /models/4x_NMKD-Superscale.pth https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth && \
+    curl -L -o /models/GFPGANv1.3.pth https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth
 
 # Pre-download FaceXLib detection & parsing models
 RUN mkdir -p /root/.cache/facexlib/weights && \
